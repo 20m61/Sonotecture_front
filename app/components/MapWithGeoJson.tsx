@@ -98,19 +98,38 @@ const MapWithGeoJson = () => {
 
   // 音楽生成のための関数
   const playSound = (frequency: number) => {
-    const synth = new Tone.Synth().toDestination();
+    const synth = new Tone.Synth({
+      oscillator: {
+        type: 'sine', // 'sine'は滑らかな波形、ノイズが少ない
+      },
+      envelope: {
+        attack: 0.05, // 音の立ち上がりを遅くして滑らかに
+        decay: 0.1,
+        sustain: 0.3,
+        release: 0.8, // 音がすぐに切れないように少し伸ばす
+      },
+    }).toDestination();
+
     synth.triggerAttackRelease(frequency, '8n');
   };
 
+  // 音楽生成の改善: 建物ごとに音の間隔を確保
   const generateMusicFromBuildings = (buildings: any[]) => {
+    Tone.Transport.stop(); // 前回の再生を停止してから再生を開始
+    Tone.Transport.cancel(); // 既存のスケジュールをクリア
     Tone.Transport.start();
+
+    let time = 0;
+
     buildings.forEach((building, index) => {
       const height = building.properties?.measuredHeight;
       if (height && isPlaying) {
         const frequency = 100 + height * 2;
+        // 1秒間隔で音を再生
         Tone.Transport.schedule((time) => {
           playSound(frequency);
-        }, index * 0.5);
+        }, time);
+        time += 1; // 音の間隔を1秒に設定
       }
     });
   };
@@ -118,9 +137,6 @@ const MapWithGeoJson = () => {
   // 音楽再生の切り替え
   const toggleMusic = () => {
     setIsPlaying((prev) => !prev);
-    if (!isPlaying) {
-      Tone.start();
-    }
   };
 
   // 距離計算
