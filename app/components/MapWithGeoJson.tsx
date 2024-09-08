@@ -3,13 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import DeckGL from '@deck.gl/react';
 import { GeoJsonLayer } from '@deck.gl/layers';
+import { ViewStateChangeParameters } from '@deck.gl/core'; // ViewStateChangeParametersのインポート
 
 const INITIAL_VIEW_STATE = {
   latitude: 35.6895, // 初期の緯度（東京）
   longitude: 139.6917, // 初期の経度
-  zoom: 19, // 1メートルの高度に合わせたズームレベル
+  zoom: 40, // 1メートルの高度に合わせたズームレベル
   bearing: 0, // 方角を設定
-  pitch: -5, // 水平から5度上向きに設定
+  pitch: 120, // 水平から5度上向きに設定
 };
 
 const MapWithGeoJson = () => {
@@ -73,9 +74,14 @@ const MapWithGeoJson = () => {
 
     // iOS向けのDeviceOrientationEvent.requestPermissionの処理
     const handleOrientationPermission = async () => {
-      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+      // requestPermissionが存在するかをチェック
+      if (
+        typeof (DeviceOrientationEvent as any).requestPermission === 'function'
+      ) {
         try {
-          const permission = await DeviceOrientationEvent.requestPermission();
+          const permission = await (
+            DeviceOrientationEvent as any
+          ).requestPermission();
           if (permission === 'granted') {
             window.addEventListener('deviceorientation', handleOrientation);
           }
@@ -83,19 +89,19 @@ const MapWithGeoJson = () => {
           setError('Device orientation permission denied');
         }
       } else {
-        // 他のブラウザ向け
+        // requestPermissionがない場合は通常の処理
         window.addEventListener('deviceorientation', handleOrientation);
       }
     };
 
     const handleOrientation = (event: DeviceOrientationEvent) => {
-      if (event.alpha !== null) {
+      if (event.alpha !== null && typeof event.alpha === 'number') {
         setHeading(event.alpha); // デバイスの方角を取得
 
         // viewStateを更新して地図を回転させる
         setViewState((prevState) => ({
           ...prevState,
-          bearing: event.alpha, // 方角に合わせて回転
+          bearing: event.alpha ?? prevState.bearing, // nullチェックし、既存の値を維持
         }));
       }
     };
@@ -154,7 +160,10 @@ const MapWithGeoJson = () => {
         viewState={viewState}
         controller={true}
         layers={layers}
-        onViewStateChange={({ viewState }) => setViewState(viewState)}
+        // viewStateを取得して更新
+        onViewStateChange={(params: ViewStateChangeParameters<any>) =>
+          setViewState(params.viewState)
+        }
       />
     </div>
   );
