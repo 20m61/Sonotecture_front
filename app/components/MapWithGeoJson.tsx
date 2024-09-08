@@ -29,7 +29,7 @@ const MapWithGeoJson = () => {
     const fetchGeoJson = async () => {
       try {
         console.log('Fetching GeoJSON data...');
-        const response = await fetch('/data/building.geojson'); // パスが正しいか確認
+        const response = await fetch('./data/building.geojson'); // パスが正しいか確認
         if (!response.ok) {
           throw new Error('Failed to fetch GeoJSON data');
         }
