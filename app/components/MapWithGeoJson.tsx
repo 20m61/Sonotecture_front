@@ -9,9 +9,9 @@ import * as Tone from 'tone'; // Tone.jsをインポート
 const INITIAL_VIEW_STATE = {
   latitude: 35.6895, // 初期の緯度（東京）
   longitude: 139.6917, // 初期の経度
-  zoom: 18, // 1メートルの高度に合わせたズームレベル
+  zoom: 10, // 1メートルの高度に合わせたズームレベル
   bearing: 0, // 方角を設定
-  pitch: 120, // 水平から5度上向きに設定
+  pitch: 210, // 水平から5度上向きに設定
 };
 
 const MapWithGeoJson = () => {
@@ -29,7 +29,7 @@ const MapWithGeoJson = () => {
     const fetchGeoJson = async () => {
       try {
         console.log('Fetching GeoJSON data...');
-        const response = await fetch('./data/building.geojson'); // 絶対パスを確認
+        const response = await fetch('/data/building.geojson'); // 絶対パスを確認
         if (!response.ok) {
           throw new Error('Failed to fetch GeoJSON data');
         }
@@ -112,18 +112,23 @@ const MapWithGeoJson = () => {
       typeof (DeviceOrientationEvent as any).requestPermission === 'function'
     ) {
       try {
+        console.log('Requesting device orientation permission...');
         const permission = await (
           DeviceOrientationEvent as any
         ).requestPermission();
         if (permission === 'granted') {
+          console.log('Permission granted.');
           window.addEventListener('deviceorientation', handleOrientation);
         } else {
+          console.error('Device orientation permission denied');
           setError('Device orientation permission denied');
         }
       } catch (error) {
+        console.error('Error requesting device orientation permission:', error);
         setError('Device orientation permission denied');
       }
     } else {
+      console.log('No need for device orientation permission.');
       // 権限リクエストが不要なブラウザ用の処理
       window.addEventListener('deviceorientation', handleOrientation);
     }
@@ -131,6 +136,7 @@ const MapWithGeoJson = () => {
 
   const handleOrientation = (event: DeviceOrientationEvent) => {
     if (event.alpha !== null && typeof event.alpha === 'number') {
+      console.log('Device orientation detected: ', event.alpha);
       setHeading(event.alpha); // デバイスの方角を取得
 
       // viewStateを更新して地図を回転させる
