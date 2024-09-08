@@ -117,19 +117,45 @@ const MapWithGeoJson = () => {
     return { pitch, duration };
   };
 
-  const playSound = (pitch: number, duration: number) => {
-    const synth = new Tone.Synth().toDestination();
-    synth.triggerAttackRelease(pitch, `${duration}s`);
+  // 音色を設定（建物の使用用途などで音色を変化させる）
+  const getInstrument = (usage: string | undefined) => {
+    if (usage?.includes('工場')) {
+      return new Tone.MembraneSynth().toDestination(); // 工場なら打楽器系
+    } else if (usage?.includes('事務所')) {
+      return new Tone.Synth().toDestination(); // 事務所ならシンセサイザー系
+    } else {
+      return new Tone.FMSynth().toDestination(); // その他はFMシンセサイザー
+    }
   };
 
+  // 和音を生成
+  const generateChord = (baseNote: number) => {
+    return [baseNote, baseNote + 4, baseNote + 7]; // 基本の三和音
+  };
+
+  // 音を再生する
+  const playSound = (pitch: number, duration: number, instrument: any) => {
+    const chord = generateChord(pitch);
+    chord.forEach((note, index) => {
+      instrument.triggerAttackRelease(
+        note,
+        `${duration}s`,
+        Tone.now() + index * 0.1
+      );
+    });
+  };
+
+  // 音楽を再生
   const handlePlayMusic = () => {
     let delay = 0;
     buildingsWithin8km.forEach((building, index) => {
       const height = building.properties.measuredHeight;
+      const usage = building.properties.usage;
       if (height) {
         const { pitch, duration } = generateMusicParameters(height);
+        const instrument = getInstrument(usage); // 音色を選択
         setTimeout(() => {
-          playSound(pitch, duration);
+          playSound(pitch, duration, instrument);
         }, delay);
         delay += duration * 1000 + 100; // 各音の間隔を少し長めに設定
       }
@@ -162,19 +188,23 @@ const MapWithGeoJson = () => {
           position: 'absolute',
           top: 10,
           left: 10,
-          backgroundColor: 'rgba(0,0,0,0.5)',
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
           color: 'white',
-          padding: '10px',
-          borderRadius: '8px',
+          padding: '20px',
+          borderRadius: '10px',
           zIndex: 1,
+          maxWidth: '300px',
+          maxHeight: '80vh', // パネルの高さ制限
+          overflowY: 'auto', // 縦スクロールを追加
         }}
       >
+        <h2 style={{ fontSize: '18px', marginBottom: '10px' }}>現在の情報</h2>
         <p>緯度: {latitude.toFixed(6)}</p>
         <p>経度: {longitude.toFixed(6)}</p>
         <p>方角: {heading.toFixed(2)}°</p>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
-        <button onClick={handlePlayMusic}>音楽を再生</button>
-        <h4>8km以内の建物リスト</h4>
+        <h3 style={{ fontSize: '16px', marginTop: '20px' }}>
+          近くの建物（8km以内）
+        </h3>
         <ul>
           {buildingsWithin8km.map((building, index) => (
             <li key={index}>
@@ -184,10 +214,21 @@ const MapWithGeoJson = () => {
             </li>
           ))}
         </ul>
+        <button
+          style={{
+            padding: '10px',
+            marginTop: '20px',
+            backgroundColor: '#4CAF50',
+            color: 'white',
+            borderRadius: '5px',
+          }}
+          onClick={handlePlayMusic}
+        >
+          音楽を再生
+        </button>
       </div>
-
       <DeckGL
-        viewState={viewState}
+        initialViewState={viewState}
         controller={true}
         layers={layers}
         onViewStateChange={(params: ViewStateChangeParameters<any>) =>
