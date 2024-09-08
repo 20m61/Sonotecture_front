@@ -9,7 +9,7 @@ import * as Tone from 'tone'; // Tone.jsをインポート
 const INITIAL_VIEW_STATE = {
   latitude: 35.6895, // 初期の緯度（東京）
   longitude: 139.6917, // 初期の経度
-  zoom: 10, // 1メートルの高度に合わせたズームレベル
+  zoom: 18, // 1メートルの高度に合わせたズームレベル
   bearing: 0, // 方角を設定
   pitch: 120, // 水平から5度上向きに設定
 };
@@ -21,8 +21,7 @@ const MapWithGeoJson = () => {
   const [heading, setHeading] = useState(INITIAL_VIEW_STATE.bearing);
   const [error, setError] = useState<string | null>(null);
   const [geojsonData, setGeojsonData] = useState<any>(null);
-  const [filteredBuildings, setFilteredBuildings] = useState<any[]>([]);
-  const [iOSPermissionRequested, setIOSPermissionRequested] = useState(false); // iOS用のフラグ
+  const [allBuildings, setAllBuildings] = useState<any[]>([]); // すべての建物を保存
 
   // GeoJSONデータをfetchで読み込む
   useEffect(() => {
@@ -36,6 +35,7 @@ const MapWithGeoJson = () => {
         const data = await response.json();
         console.log('GeoJSON data loaded:', data); // データが正しく読み込まれたか確認
         setGeojsonData(data);
+        setAllBuildings(data.features); // すべての建物を保存
       } catch (error) {
         console.error('Error loading GeoJSON:', error);
         setError('Failed to load GeoJSON data');
@@ -106,8 +106,6 @@ const MapWithGeoJson = () => {
 
   // iOS向けの方角取得ボタン
   const handleOrientationPermission = async () => {
-    setIOSPermissionRequested(true); // ボタンを押したフラグを設定
-
     if (
       typeof (DeviceOrientationEvent as any).requestPermission === 'function'
     ) {
@@ -140,30 +138,7 @@ const MapWithGeoJson = () => {
     }
   };
 
-  // 建物をフィルタリングする
-  useEffect(() => {
-    if (geojsonData && latitude && longitude) {
-      const radius = 2; // 2kmの範囲
-      const filtered = geojsonData.features.filter((feature: any) => {
-        const buildingCoords = feature.geometry.coordinates;
-        const distance = calculateDistance(
-          latitude,
-          longitude,
-          buildingCoords[1],
-          buildingCoords[0]
-        );
-        return distance <= radius; // 2km以内の建物のみを取得
-      });
-
-      setFilteredBuildings(filtered);
-      console.log('Filtered Buildings:', filtered); // フィルタリング結果をコンソールに出力
-
-      // 音楽を更新
-      createMusicFromBuildings(filtered);
-    }
-  }, [geojsonData, latitude, longitude]);
-
-  // 2地点間の距離を計算する関数 (ハバースインの公式)
+  // 現在地から建物までの距離を計算する関数
   const calculateDistance = (
     lat1: number,
     lon1: number,
@@ -223,37 +198,26 @@ const MapWithGeoJson = () => {
         <p>Longitude: {longitude.toFixed(6)}</p>
         <p>Heading: {heading.toFixed(2)}°</p>
         {error && <p style={{ color: 'red' }}>{error}</p>}
-        <h4>2km以内の建物リスト</h4>
+        <h4>すべての建物リスト (現在地からの距離)</h4>
         <ul>
-          {filteredBuildings.map((building, index) => (
-            <li key={index}>
-              {building.properties.name || 'No Name'} - 高さ:{' '}
-              {building.properties.height || '不明'}m
-            </li>
-          ))}
+          {allBuildings.map((building, index) => {
+            const buildingCoords = building.geometry.coordinates;
+            const distance = calculateDistance(
+              latitude,
+              longitude,
+              buildingCoords[1],
+              buildingCoords[0]
+            );
+            return (
+              <li key={index}>
+                {building.properties.name || 'No Name'} - 高さ:{' '}
+                {building.properties.height || '不明'}m - 距離:{' '}
+                {distance.toFixed(2)} km
+              </li>
+            );
+          })}
         </ul>
       </div>
-
-      {!iOSPermissionRequested && (
-        <button
-          onClick={handleOrientationPermission}
-          style={{
-            position: 'fixed',
-            bottom: '10%',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            padding: '15px 30px',
-            backgroundColor: 'blue',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            fontSize: '16px',
-            cursor: 'pointer',
-          }}
-        >
-          iOSで方角の許可をリクエスト
-        </button>
-      )}
 
       <DeckGL
         viewState={viewState}
