@@ -9,9 +9,9 @@ import * as Tone from 'tone';
 const INITIAL_VIEW_STATE = {
   latitude: 35.6895, // 東京
   longitude: 139.6917,
-  zoom: 12,
+  zoom: 18,
   bearing: 0,
-  pitch: 0,
+  pitch: 90,
 };
 
 const MapWithGeoJson = () => {
