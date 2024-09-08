@@ -7,31 +7,13 @@ const LocationDisplay: React.FC = () => {
   const [heading, setHeading] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // 位置情報取得のしきい値（前回の値と比較し変化が大きい場合のみ更新）
-  const positionThreshold = 0.0001;
-  const headingThreshold = 1;
-
   // 緯度経度のリアルタイム取得
   useEffect(() => {
     if ('geolocation' in navigator) {
       const watchId = navigator.geolocation.watchPosition(
         (position) => {
-          const newLatitude = position.coords.latitude;
-          const newLongitude = position.coords.longitude;
-
-          // 一定の変化があったときのみ更新
-          if (
-            !latitude ||
-            Math.abs(newLatitude - latitude) > positionThreshold
-          ) {
-            setLatitude(newLatitude);
-          }
-          if (
-            !longitude ||
-            Math.abs(newLongitude - longitude) > positionThreshold
-          ) {
-            setLongitude(newLongitude);
-          }
+          setLatitude(position.coords.latitude);
+          setLongitude(position.coords.longitude);
         },
         (err) => {
           setError(`Location error: ${err.message}`);
@@ -45,31 +27,33 @@ const LocationDisplay: React.FC = () => {
     } else {
       setError('Geolocation is not supported by this browser.');
     }
-  }, [latitude, longitude]);
+  }, []);
 
   // 向き（方位）のリアルタイム取得
   useEffect(() => {
     const handleOrientation = (event: DeviceOrientationEvent) => {
       if (event.alpha !== null) {
-        const newHeading = event.alpha;
-        // 1度以上変化があった場合のみ更新
-        if (!heading || Math.abs(newHeading - heading) > headingThreshold) {
-          setHeading(newHeading);
-        }
+        setHeading(event.alpha);
       }
     };
 
     const requestPermission = async () => {
-      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+      // 型キャストで requestPermission メソッドが存在することを確認
+      const DeviceOrientation = DeviceOrientationEvent as any;
+      if (typeof DeviceOrientation.requestPermission === 'function') {
         try {
-          const permission = await DeviceOrientationEvent.requestPermission();
+          const permission = await DeviceOrientation.requestPermission();
           if (permission === 'granted') {
             window.addEventListener('deviceorientation', handleOrientation);
           } else {
             setError('Device orientation permission denied.');
           }
         } catch (err) {
-          setError(`Device orientation error: ${err.message}`);
+          if (err instanceof Error) {
+            setError(`Device orientation error: ${err.message}`);
+          } else {
+            setError('An unknown error occurred during device orientation.');
+          }
         }
       } else {
         window.addEventListener('deviceorientation', handleOrientation);
