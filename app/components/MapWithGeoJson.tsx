@@ -25,7 +25,7 @@ const MapWithGeoJson = () => {
   useEffect(() => {
     const fetchGeoJson = async () => {
       try {
-        const response = await fetch('/data/Building.geojson'); // publicディレクトリ内のファイルを参照
+        const response = await fetch('/data/building.geojson'); // publicディレクトリ内のファイルを参照
         if (!response.ok) {
           throw new Error('Failed to fetch GeoJSON data');
         }
