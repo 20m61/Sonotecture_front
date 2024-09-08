@@ -11,7 +11,7 @@ const INITIAL_VIEW_STATE = {
   longitude: 139.6917, // 初期の経度
   zoom: 10, // 1メートルの高度に合わせたズームレベル
   bearing: 0, // 方角を設定
-  pitch: 210, // 水平から5度上向きに設定
+  pitch: 120, // 水平から5度上向きに設定
 };
 
 const MapWithGeoJson = () => {
@@ -29,7 +29,7 @@ const MapWithGeoJson = () => {
     const fetchGeoJson = async () => {
       try {
         console.log('Fetching GeoJSON data...');
-        const response = await fetch('./data/building.geojson'); // 絶対パスを確認
+        const response = await fetch('./data/building.geojson'); // 必ず指定されたパスを使用
         if (!response.ok) {
           throw new Error('Failed to fetch GeoJSON data');
         }
@@ -112,31 +112,24 @@ const MapWithGeoJson = () => {
       typeof (DeviceOrientationEvent as any).requestPermission === 'function'
     ) {
       try {
-        console.log('Requesting device orientation permission...');
         const permission = await (
           DeviceOrientationEvent as any
         ).requestPermission();
         if (permission === 'granted') {
-          console.log('Permission granted.');
           window.addEventListener('deviceorientation', handleOrientation);
         } else {
-          console.error('Device orientation permission denied');
           setError('Device orientation permission denied');
         }
       } catch (error) {
-        console.error('Error requesting device orientation permission:', error);
         setError('Device orientation permission denied');
       }
     } else {
-      console.log('No need for device orientation permission.');
-      // 権限リクエストが不要なブラウザ用の処理
       window.addEventListener('deviceorientation', handleOrientation);
     }
   };
 
   const handleOrientation = (event: DeviceOrientationEvent) => {
     if (event.alpha !== null && typeof event.alpha === 'number') {
-      console.log('Device orientation detected: ', event.alpha);
       setHeading(event.alpha); // デバイスの方角を取得
 
       // viewStateを更新して地図を回転させる
@@ -149,18 +142,17 @@ const MapWithGeoJson = () => {
 
   // 建物をフィルタリングする
   useEffect(() => {
-    if (geojsonData && latitude && longitude && heading !== null) {
-      const range = 30; // 方角の範囲（前方30度）
-
+    if (geojsonData && latitude && longitude) {
+      const radius = 2; // 2kmの範囲
       const filtered = geojsonData.features.filter((feature: any) => {
         const buildingCoords = feature.geometry.coordinates;
-        const bearing = calculateBearing(
+        const distance = calculateDistance(
           latitude,
           longitude,
           buildingCoords[1],
           buildingCoords[0]
         );
-        return Math.abs(bearing - heading) <= range;
+        return distance <= radius; // 2km以内の建物のみを取得
       });
 
       setFilteredBuildings(filtered);
@@ -169,23 +161,28 @@ const MapWithGeoJson = () => {
       // 音楽を更新
       createMusicFromBuildings(filtered);
     }
-  }, [geojsonData, latitude, longitude, heading]);
+  }, [geojsonData, latitude, longitude]);
 
-  // ベアリング（緯度経度から方角を計算）
-  const calculateBearing = (
+  // 2地点間の距離を計算する関数 (ハバースインの公式)
+  const calculateDistance = (
     lat1: number,
     lon1: number,
     lat2: number,
     lon2: number
   ) => {
-    const toRadians = (deg: number) => deg * (Math.PI / 180);
-    const toDegrees = (rad: number) => rad * (180 / Math.PI);
+    const toRadians = (deg: number) => (deg * Math.PI) / 180;
+    const R = 6371; // 地球の半径（km）
+    const dLat = toRadians(lat2 - lat1);
     const dLon = toRadians(lon2 - lon1);
-    const y = Math.sin(dLon) * Math.cos(toRadians(lat2));
-    const x =
-      Math.cos(toRadians(lat1)) * Math.sin(toRadians(lat2)) -
-      Math.sin(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.cos(dLon);
-    return (toDegrees(Math.atan2(y, x)) + 360) % 360;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRadians(lat1)) *
+        Math.cos(toRadians(lat2)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c; // 距離（km）
+    return distance;
   };
 
   if (!geojsonData) {
@@ -226,7 +223,7 @@ const MapWithGeoJson = () => {
         <p>Longitude: {longitude.toFixed(6)}</p>
         <p>Heading: {heading.toFixed(2)}°</p>
         {error && <p style={{ color: 'red' }}>{error}</p>}
-        <h4>方角の範囲内の建物リスト</h4>
+        <h4>2km以内の建物リスト</h4>
         <ul>
           {filteredBuildings.map((building, index) => (
             <li key={index}>
@@ -241,10 +238,10 @@ const MapWithGeoJson = () => {
         <button
           onClick={handleOrientationPermission}
           style={{
-            position: 'fixed', // 画面に固定
-            bottom: '10%', // 下から10%の位置
-            left: '50%', // 左右の中央
-            transform: 'translateX(-50%)', // 完全な中央に移動
+            position: 'fixed',
+            bottom: '10%',
+            left: '50%',
+            transform: 'translateX(-50%)',
             padding: '15px 30px',
             backgroundColor: 'blue',
             color: 'white',
