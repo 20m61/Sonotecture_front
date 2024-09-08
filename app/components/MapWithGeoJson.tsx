@@ -97,20 +97,20 @@ const MapWithGeoJson = () => {
   };
 
   // 音楽生成のための関数
-  const playSound = (frequency: number, duration: number) => {
+  const playSound = (frequency: number) => {
     const synth = new Tone.Synth().toDestination();
-    synth.triggerAttackRelease(frequency, duration);
+    synth.triggerAttackRelease(frequency, '8n');
   };
 
   const generateMusicFromBuildings = (buildings: any[]) => {
+    Tone.Transport.start();
     buildings.forEach((building, index) => {
       const height = building.properties?.measuredHeight;
       if (height && isPlaying) {
         const frequency = 100 + height * 2;
-        const duration = 0.5;
-        setTimeout(() => {
-          playSound(frequency, duration);
-        }, index * 500);
+        Tone.Transport.schedule((time) => {
+          playSound(frequency);
+        }, index * 0.5);
       }
     });
   };
@@ -118,6 +118,9 @@ const MapWithGeoJson = () => {
   // 音楽再生の切り替え
   const toggleMusic = () => {
     setIsPlaying((prev) => !prev);
+    if (!isPlaying) {
+      Tone.start();
+    }
   };
 
   // 距離計算
