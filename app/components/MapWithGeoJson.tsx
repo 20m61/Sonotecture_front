@@ -4,24 +4,25 @@ import React, { useState, useEffect } from 'react';
 import DeckGL from '@deck.gl/react';
 import { GeoJsonLayer } from '@deck.gl/layers';
 import { ViewStateChangeParameters } from '@deck.gl/core';
-import * as Tone from 'tone'; // Tone.jsをインポート
+import * as Tone from 'tone'; // 音楽生成ライブラリをインポート
 
 const INITIAL_VIEW_STATE = {
-  latitude: 35.6895, // 初期の緯度（東京）
-  longitude: 139.6917, // 初期の経度
-  zoom: 18, // ズームレベル
-  bearing: 0, // 方角
-  pitch: 60, // ピッチ（カメラの傾き）
+  latitude: 35.6895, // 東京
+  longitude: 139.6917,
+  zoom: 12,
+  bearing: 0, // 初期の方角
+  pitch: 0, // 初期のカメラ角度
 };
 
 const MapWithGeoJson = () => {
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE);
   const [latitude, setLatitude] = useState(INITIAL_VIEW_STATE.latitude);
   const [longitude, setLongitude] = useState(INITIAL_VIEW_STATE.longitude);
-  const [heading, setHeading] = useState(0); // 方角
+  const [heading, setHeading] = useState(INITIAL_VIEW_STATE.bearing);
   const [error, setError] = useState<string | null>(null);
   const [geojsonData, setGeojsonData] = useState<any>(null);
-  const [buildingsWithin8km, setBuildingsWithin8km] = useState<any[]>([]);
+  const [filteredBuildings, setFilteredBuildings] = useState<any[]>([]);
+  const [iOSPermissionRequested, setIOSPermissionRequested] = useState(false);
 
   // GeoJSONデータを読み込む
   useEffect(() => {
@@ -29,137 +30,139 @@ const MapWithGeoJson = () => {
       try {
         const response = await fetch('./data/building.geojson');
         if (!response.ok) {
-          throw new Error('Failed to fetch GeoJSON data');
+          throw new Error('GeoJSONのデータ読み込みに失敗しました');
         }
         const data = await response.json();
         setGeojsonData(data);
       } catch (error) {
-        console.error('Error loading GeoJSON:', error);
-        setError('Failed to load GeoJSON data');
+        console.error('GeoJSONの読み込みエラー:', error);
+        setError('GeoJSONのデータ読み込みに失敗しました');
       }
     };
     fetchGeoJson();
   }, []);
 
-  // デバイスの緯度、経度、方角をリアルタイムに取得
+  // 方角の取得（iOS向けの許可リクエスト）
+  const handleOrientationPermission = async () => {
+    setIOSPermissionRequested(true); // 許可リクエストがされたことを記録
+
+    if (
+      typeof (DeviceOrientationEvent as any).requestPermission === 'function'
+    ) {
+      try {
+        const permission = await (
+          DeviceOrientationEvent as any
+        ).requestPermission();
+        if (permission === 'granted') {
+          window.addEventListener('deviceorientation', handleOrientation);
+        } else {
+          setError('デバイス方角の許可が拒否されました');
+        }
+      } catch (error) {
+        setError('デバイス方角の許可が拒否されました');
+      }
+    } else {
+      // 権限リクエストが不要なブラウザ
+      window.addEventListener('deviceorientation', handleOrientation);
+    }
+  };
+
+  const handleOrientation = (event: DeviceOrientationEvent) => {
+    if (event.alpha !== null && typeof event.alpha === 'number') {
+      setHeading(event.alpha); // 方角を更新
+      setViewState((prevState) => ({
+        ...prevState,
+        bearing: event.alpha ?? prevState.bearing, // 地図の回転を更新
+      }));
+    }
+  };
+
+  // ユーザーの現在位置を取得する
   useEffect(() => {
     if ('geolocation' in navigator) {
       const watchId = navigator.geolocation.watchPosition(
         (position) => {
           setLatitude(position.coords.latitude);
           setLongitude(position.coords.longitude);
+          setViewState((prevState) => ({
+            ...prevState,
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          }));
         },
-        (err) => setError('位置情報を取得できませんでした: ' + err.message),
-        { enableHighAccuracy: true }
+        (err) => {
+          setError(`位置情報エラー: ${err.message}`);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        }
       );
-      return () => navigator.geolocation.clearWatch(watchId);
+      return () => {
+        navigator.geolocation.clearWatch(watchId);
+      };
     } else {
-      setError('このブラウザでは位置情報がサポートされていません');
+      setError('このブラウザは位置情報をサポートしていません');
     }
   }, []);
 
-  // デバイスの方角（heading）をリアルタイムに取得
-  useEffect(() => {
-    const handleOrientation = (event: DeviceOrientationEvent) => {
-      if (event.alpha !== null) {
-        setHeading(event.alpha); // デバイスの方角（0-360度）
+  // 高さに基づいた音楽生成
+  const playSound = (frequency: number, duration: number) => {
+    const synth = new Tone.Synth().toDestination();
+    synth.triggerAttackRelease(frequency, duration);
+  };
+
+  const generateMusicFromBuildings = (buildings: any[]) => {
+    buildings.forEach((building, index) => {
+      const height = building.properties?.measuredHeight;
+      if (height) {
+        const frequency = 100 + height * 2; // 高さに応じて周波数を設定
+        const duration = 0.5; // 0.5秒の長さ
+        setTimeout(() => {
+          playSound(frequency, duration);
+        }, index * 500); // 音を0.5秒ごとに鳴らす
       }
-    };
-
-    if (window.DeviceOrientationEvent) {
-      window.addEventListener('deviceorientation', handleOrientation);
-    } else {
-      setError('このデバイスでは方角がサポートされていません');
-    }
-
-    return () =>
-      window.removeEventListener('deviceorientation', handleOrientation);
-  }, []);
+    });
+  };
 
   // 8km以内の建物をフィルタリング
   useEffect(() => {
-    if (geojsonData && latitude && longitude) {
-      const radius = 8; // 半径8km
-      const R = 6371; // 地球の半径 (km)
-
+    if (geojsonData) {
       const filtered = geojsonData.features.filter((feature: any) => {
-        const buildingCoords = feature.geometry.coordinates[0][0][0];
-        const buildingLat = buildingCoords[1];
-        const buildingLon = buildingCoords[0];
-
-        const dLat = (buildingLat - latitude) * (Math.PI / 180);
-        const dLon = (buildingLon - longitude) * (Math.PI / 180);
-        const lat1 = latitude * (Math.PI / 180);
-        const lat2 = buildingLat * (Math.PI / 180);
-
-        const a =
-          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-          Math.sin(dLon / 2) *
-            Math.sin(dLon / 2) *
-            Math.cos(lat1) *
-            Math.cos(lat2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-        const distance = R * c; // 距離 (km)
-
-        return distance <= radius;
+        const buildingCoords = feature.geometry.coordinates[0][0];
+        const distance = calculateDistance(
+          latitude,
+          longitude,
+          buildingCoords[1],
+          buildingCoords[0]
+        );
+        return distance <= 8; // 8km以内の建物を取得
       });
-
-      setBuildingsWithin8km(filtered);
+      setFilteredBuildings(filtered);
+      generateMusicFromBuildings(filtered);
     }
-  }, [geojsonData, latitude, longitude]);
+  }, [geojsonData, latitude, longitude, heading]);
 
-  // 音楽生成機能
-  const generateMusicParameters = (height: number) => {
-    const baseFrequency = 100; // ベースの周波数
-    const pitch = baseFrequency + height * 2; // 高さに基づいて周波数を設定
-    const duration = 1 + height / 100; // 音の長さを設定（建物の高さに応じて）
-    return { pitch, duration };
-  };
-
-  // 音色を設定（建物の使用用途などで音色を変化させる）
-  const getInstrument = (usage: string | undefined) => {
-    if (usage?.includes('工場')) {
-      return new Tone.MembraneSynth().toDestination(); // 工場なら打楽器系
-    } else if (usage?.includes('事務所')) {
-      return new Tone.Synth().toDestination(); // 事務所ならシンセサイザー系
-    } else {
-      return new Tone.FMSynth().toDestination(); // その他はFMシンセサイザー
-    }
-  };
-
-  // 和音を生成
-  const generateChord = (baseNote: number) => {
-    return [baseNote, baseNote + 4, baseNote + 7]; // 基本の三和音
-  };
-
-  // 音を再生する
-  const playSound = (pitch: number, duration: number, instrument: any) => {
-    const chord = generateChord(pitch);
-    chord.forEach((note, index) => {
-      instrument.triggerAttackRelease(
-        note,
-        `${duration}s`,
-        Tone.now() + index * 0.1
-      );
-    });
-  };
-
-  // 音楽を再生
-  const handlePlayMusic = () => {
-    let delay = 0;
-    buildingsWithin8km.forEach((building, index) => {
-      const height = building.properties.measuredHeight;
-      const usage = building.properties.usage;
-      if (height) {
-        const { pitch, duration } = generateMusicParameters(height);
-        const instrument = getInstrument(usage); // 音色を選択
-        setTimeout(() => {
-          playSound(pitch, duration, instrument);
-        }, delay);
-        delay += duration * 1000 + 100; // 各音の間隔を少し長めに設定
-      }
-    });
+  // 距離計算
+  const calculateDistance = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number
+  ) => {
+    const toRadians = (deg: number) => (deg * Math.PI) / 180;
+    const R = 6371; // 地球の半径（km）
+    const dLat = toRadians(lat2 - lat1);
+    const dLon = toRadians(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRadians(lat1)) *
+        Math.cos(toRadians(lat2)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // 距離（km）
   };
 
   const layers = [
@@ -171,15 +174,9 @@ const MapWithGeoJson = () => {
       filled: true,
       extruded: true, // 3D表示
       getFillColor: [160, 160, 180, 200],
-      getLineColor: [0, 0, 0, 255],
-      getRadius: 100,
-      getElevation: (d: any) => d.properties.measuredHeight || 30,
+      getElevation: (d: any) => d.properties.measuredHeight || 0,
     }),
   ];
-
-  if (!geojsonData) {
-    return <div>Loading...</div>;
-  }
 
   return (
     <div style={{ height: '100vh', width: '100vw', position: 'relative' }}>
@@ -188,47 +185,49 @@ const MapWithGeoJson = () => {
           position: 'absolute',
           top: 10,
           left: 10,
-          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          backgroundColor: 'rgba(0,0,0,0.5)',
           color: 'white',
-          padding: '20px',
-          borderRadius: '10px',
+          padding: '10px',
+          borderRadius: '8px',
           zIndex: 1,
-          maxWidth: '300px',
-          maxHeight: '80vh', // パネルの高さ制限
-          overflowY: 'auto', // 縦スクロールを追加
         }}
       >
-        <h2 style={{ fontSize: '18px', marginBottom: '10px' }}>現在の情報</h2>
-        <p>緯度: {latitude.toFixed(6)}</p>
-        <p>経度: {longitude.toFixed(6)}</p>
-        <p>方角: {heading.toFixed(2)}°</p>
-        <h3 style={{ fontSize: '16px', marginTop: '20px' }}>
-          近くの建物（8km以内）
-        </h3>
+        <p>Latitude: {latitude.toFixed(6)}</p>
+        <p>Longitude: {longitude.toFixed(6)}</p>
+        <p>Heading: {heading.toFixed(2)}°</p>
+        {error && <p style={{ color: 'red' }}>{error}</p>}
+        <h4>8km以内の建物</h4>
         <ul>
-          {buildingsWithin8km.map((building, index) => (
+          {filteredBuildings.map((building, index) => (
             <li key={index}>
-              {building.properties.measuredHeight
-                ? `高さ: ${building.properties.measuredHeight}m`
-                : '高さ不明'}
+              {building.properties.name || '不明'} - 高さ:{' '}
+              {building.properties.measuredHeight || '不明'}m
             </li>
           ))}
         </ul>
-        <button
-          style={{
-            padding: '10px',
-            marginTop: '20px',
-            backgroundColor: '#4CAF50',
-            color: 'white',
-            borderRadius: '5px',
-          }}
-          onClick={handlePlayMusic}
-        >
-          音楽を再生
-        </button>
       </div>
+
+      {!iOSPermissionRequested && (
+        <button
+          onClick={handleOrientationPermission}
+          style={{
+            position: 'absolute',
+            bottom: 20,
+            left: 20,
+            padding: '10px 20px',
+            backgroundColor: 'blue',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: 'pointer',
+          }}
+        >
+          iOSで方角の許可をリクエスト
+        </button>
+      )}
+
       <DeckGL
-        initialViewState={viewState}
+        viewState={viewState}
         controller={true}
         layers={layers}
         onViewStateChange={(params: ViewStateChangeParameters<any>) =>
