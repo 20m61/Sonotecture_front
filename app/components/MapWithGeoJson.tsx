@@ -9,7 +9,7 @@ import * as Tone from 'tone'; // Tone.jsをインポート
 const INITIAL_VIEW_STATE = {
   latitude: 35.6895, // 初期の緯度（東京）
   longitude: 139.6917, // 初期の経度
-  zoom: 40, // 1メートルの高度に合わせたズームレベル
+  zoom: 18, // 1メートルの高度に合わせたズームレベル
   bearing: 0, // 方角を設定
   pitch: 120, // 水平から5度上向きに設定
 };
@@ -29,7 +29,7 @@ const MapWithGeoJson = () => {
     const fetchGeoJson = async () => {
       try {
         console.log('Fetching GeoJSON data...');
-        const response = await fetch('./data/building.geojson'); // パスが正しいか確認
+        const response = await fetch('./data/building.geojson'); // 絶対パスを確認
         if (!response.ok) {
           throw new Error('Failed to fetch GeoJSON data');
         }
@@ -124,6 +124,7 @@ const MapWithGeoJson = () => {
         setError('Device orientation permission denied');
       }
     } else {
+      // 権限リクエストが不要なブラウザ用の処理
       window.addEventListener('deviceorientation', handleOrientation);
     }
   };
@@ -234,14 +235,16 @@ const MapWithGeoJson = () => {
         <button
           onClick={handleOrientationPermission}
           style={{
-            position: 'absolute',
-            bottom: 20,
-            left: 20,
-            padding: '10px 20px',
+            position: 'fixed', // 画面に固定
+            bottom: '10%', // 下から10%の位置
+            left: '50%', // 左右の中央
+            transform: 'translateX(-50%)', // 完全な中央に移動
+            padding: '15px 30px',
             backgroundColor: 'blue',
             color: 'white',
             border: 'none',
-            borderRadius: '5px',
+            borderRadius: '8px',
+            fontSize: '16px',
             cursor: 'pointer',
           }}
         >
