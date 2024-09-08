@@ -22,13 +22,14 @@ const MapWithGeoJson = () => {
   const [error, setError] = useState<string | null>(null);
   const [geojsonData, setGeojsonData] = useState<any>(null);
   const [filteredBuildings, setFilteredBuildings] = useState<any[]>([]);
+  const [iOSPermissionRequested, setIOSPermissionRequested] = useState(false); // iOS用のフラグ
 
   // GeoJSONデータをfetchで読み込む
   useEffect(() => {
     const fetchGeoJson = async () => {
       try {
         console.log('Fetching GeoJSON data...');
-        const response = await fetch('./data/building.geojson'); // パスが正しいか確認
+        const response = await fetch('/data/building.geojson'); // パスが正しいか確認
         if (!response.ok) {
           throw new Error('Failed to fetch GeoJSON data');
         }
@@ -101,18 +102,43 @@ const MapWithGeoJson = () => {
     } else {
       setError('Geolocation is not supported by this browser.');
     }
-
-    // 方角取得
-    window.addEventListener('deviceorientation', (event) => {
-      if (event.alpha !== null && typeof event.alpha === 'number') {
-        setHeading(event.alpha);
-        setViewState((prevState) => ({
-          ...prevState,
-          bearing: event.alpha ?? prevState.bearing,
-        }));
-      }
-    });
   }, []);
+
+  // iOS向けの方角取得ボタン
+  const handleOrientationPermission = async () => {
+    setIOSPermissionRequested(true); // ボタンを押したフラグを設定
+
+    if (
+      typeof (DeviceOrientationEvent as any).requestPermission === 'function'
+    ) {
+      try {
+        const permission = await (
+          DeviceOrientationEvent as any
+        ).requestPermission();
+        if (permission === 'granted') {
+          window.addEventListener('deviceorientation', handleOrientation);
+        } else {
+          setError('Device orientation permission denied');
+        }
+      } catch (error) {
+        setError('Device orientation permission denied');
+      }
+    } else {
+      window.addEventListener('deviceorientation', handleOrientation);
+    }
+  };
+
+  const handleOrientation = (event: DeviceOrientationEvent) => {
+    if (event.alpha !== null && typeof event.alpha === 'number') {
+      setHeading(event.alpha); // デバイスの方角を取得
+
+      // viewStateを更新して地図を回転させる
+      setViewState((prevState) => ({
+        ...prevState,
+        bearing: event.alpha ?? prevState.bearing,
+      }));
+    }
+  };
 
   // 建物をフィルタリングする
   useEffect(() => {
@@ -203,6 +229,25 @@ const MapWithGeoJson = () => {
           ))}
         </ul>
       </div>
+
+      {!iOSPermissionRequested && (
+        <button
+          onClick={handleOrientationPermission}
+          style={{
+            position: 'absolute',
+            bottom: 20,
+            left: 20,
+            padding: '10px 20px',
+            backgroundColor: 'blue',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: 'pointer',
+          }}
+        >
+          iOSで方角の許可をリクエスト
+        </button>
+      )}
 
       <DeckGL
         viewState={viewState}
