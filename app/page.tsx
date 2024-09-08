@@ -12,13 +12,15 @@ const LocationDisplay: React.FC = () => {
     if ('geolocation' in navigator) {
       const watchId = navigator.geolocation.watchPosition(
         (position) => {
+          console.log('Latitude:', position.coords.latitude);
+          console.log('Longitude:', position.coords.longitude);
           setLatitude(position.coords.latitude);
           setLongitude(position.coords.longitude);
         },
         (err) => {
           setError(`Location error: ${err.message}`);
         },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
 
       return () => {
