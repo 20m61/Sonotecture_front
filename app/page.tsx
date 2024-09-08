@@ -29,8 +29,8 @@ const LocationDisplay: React.FC = () => {
     }
   }, []);
 
-  // 向き（方位）のリアルタイム取得
-  useEffect(() => {
+  // ボタン押下後に向き（方位）取得の許可を求める
+  const handlePermissionRequest = async () => {
     const handleOrientation = (event: DeviceOrientationEvent) => {
       if (event.alpha !== null) {
         setHeading(event.alpha);
@@ -38,7 +38,6 @@ const LocationDisplay: React.FC = () => {
     };
 
     const requestPermission = async () => {
-      // 型キャストで requestPermission メソッドが存在することを確認
       const DeviceOrientation = DeviceOrientationEvent as any;
       if (typeof DeviceOrientation.requestPermission === 'function') {
         try {
@@ -65,11 +64,7 @@ const LocationDisplay: React.FC = () => {
     } else {
       setError('Device orientation is not supported by this browser.');
     }
-
-    return () => {
-      window.removeEventListener('deviceorientation', handleOrientation);
-    };
-  }, [heading]);
+  };
 
   return (
     <div
@@ -108,6 +103,13 @@ const LocationDisplay: React.FC = () => {
           )}
         </>
       )}
+      {/* ボタンを追加して、ユーザーに許可を求める */}
+      <button
+        onClick={handlePermissionRequest}
+        style={{ marginTop: '20px', padding: '10px 20px', fontSize: '1.5rem' }}
+      >
+        Enable Orientation
+      </button>
     </div>
   );
 };
