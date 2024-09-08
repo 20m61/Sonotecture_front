@@ -9,7 +9,7 @@ import * as Tone from 'tone'; // Tone.jsをインポート
 const INITIAL_VIEW_STATE = {
   latitude: 35.6895, // 初期の緯度（東京）
   longitude: 139.6917, // 初期の経度
-  zoom: 12, // ズームレベル
+  zoom: 18, // ズームレベル
   bearing: 0, // 方角
   pitch: 60, // ピッチ（カメラの傾き）
 };
