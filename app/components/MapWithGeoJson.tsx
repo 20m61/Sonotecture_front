@@ -9,31 +9,29 @@ import * as Tone from 'tone'; // Tone.jsをインポート
 const INITIAL_VIEW_STATE = {
   latitude: 35.6895, // 初期の緯度（東京）
   longitude: 139.6917, // 初期の経度
-  zoom: 18, // 1メートルの高度に合わせたズームレベル
-  bearing: 0, // 方角を設定
-  pitch: 120, // 水平から5度上向きに設定
+  zoom: 12, // ズームレベル
+  bearing: 0, // 方角
+  pitch: 60, // ピッチ（カメラの傾き）
 };
 
 const MapWithGeoJson = () => {
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE);
   const [latitude, setLatitude] = useState(INITIAL_VIEW_STATE.latitude);
   const [longitude, setLongitude] = useState(INITIAL_VIEW_STATE.longitude);
+  const [heading, setHeading] = useState(0); // 方角
   const [error, setError] = useState<string | null>(null);
   const [geojsonData, setGeojsonData] = useState<any>(null);
-  const [filteredBuildings, setFilteredBuildings] = useState<any[]>([]);
   const [buildingsWithin8km, setBuildingsWithin8km] = useState<any[]>([]);
 
-  // GeoJSONデータをfetchで読み込む
+  // GeoJSONデータを読み込む
   useEffect(() => {
     const fetchGeoJson = async () => {
       try {
-        console.log('Fetching GeoJSON data...');
-        const response = await fetch('./data/building.geojson'); // 絶対パスを確認
+        const response = await fetch('./data/building.geojson');
         if (!response.ok) {
           throw new Error('Failed to fetch GeoJSON data');
         }
         const data = await response.json();
-        console.log('GeoJSON data loaded:', data); // データが正しく読み込まれたか確認
         setGeojsonData(data);
       } catch (error) {
         console.error('Error loading GeoJSON:', error);
@@ -43,34 +41,42 @@ const MapWithGeoJson = () => {
     fetchGeoJson();
   }, []);
 
-  // 音楽生成機能
-  const generateMusicParameters = (height: number) => {
-    const baseFrequency = 100; // ベースの周波数
-    const pitch = baseFrequency + height * 2; // 高さに基づいて周波数を設定
-    const duration = 1 + height / 100; // 音の長さを設定（建物の高さに応じて）
-    return { pitch, duration };
-  };
+  // デバイスの緯度、経度、方角をリアルタイムに取得
+  useEffect(() => {
+    if ('geolocation' in navigator) {
+      const watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          setLatitude(position.coords.latitude);
+          setLongitude(position.coords.longitude);
+        },
+        (err) => setError('位置情報を取得できませんでした: ' + err.message),
+        { enableHighAccuracy: true }
+      );
+      return () => navigator.geolocation.clearWatch(watchId);
+    } else {
+      setError('このブラウザでは位置情報がサポートされていません');
+    }
+  }, []);
 
-  const playSound = (pitch: number, duration: number) => {
-    const synth = new Tone.Synth().toDestination();
-    synth.triggerAttackRelease(pitch, `${duration}s`);
-  };
-
-  const handlePlayMusic = () => {
-    let delay = 0;
-    buildingsWithin8km.forEach((building, index) => {
-      const height = building.properties.measuredHeight;
-      if (height) {
-        const { pitch, duration } = generateMusicParameters(height);
-        setTimeout(() => {
-          playSound(pitch, duration);
-        }, delay);
-        delay += duration * 1000 + 100; // 各音の間隔を少し長めに設定（音の再生時間 + 100ms）
+  // デバイスの方角（heading）をリアルタイムに取得
+  useEffect(() => {
+    const handleOrientation = (event: DeviceOrientationEvent) => {
+      if (event.alpha !== null) {
+        setHeading(event.alpha); // デバイスの方角（0-360度）
       }
-    });
-  };
+    };
 
-  // 緯度経度と8km以内の建物をフィルタリング
+    if (window.DeviceOrientationEvent) {
+      window.addEventListener('deviceorientation', handleOrientation);
+    } else {
+      setError('このデバイスでは方角がサポートされていません');
+    }
+
+    return () =>
+      window.removeEventListener('deviceorientation', handleOrientation);
+  }, []);
+
+  // 8km以内の建物をフィルタリング
   useEffect(() => {
     if (geojsonData && latitude && longitude) {
       const radius = 8; // 半径8km
@@ -100,13 +106,35 @@ const MapWithGeoJson = () => {
       });
 
       setBuildingsWithin8km(filtered);
-      console.log('Filtered Buildings within 8km:', filtered); // フィルタリング結果をコンソールに出力
     }
   }, [geojsonData, latitude, longitude]);
 
-  if (!geojsonData) {
-    return <div>Loading...</div>;
-  }
+  // 音楽生成機能
+  const generateMusicParameters = (height: number) => {
+    const baseFrequency = 100; // ベースの周波数
+    const pitch = baseFrequency + height * 2; // 高さに基づいて周波数を設定
+    const duration = 1 + height / 100; // 音の長さを設定（建物の高さに応じて）
+    return { pitch, duration };
+  };
+
+  const playSound = (pitch: number, duration: number) => {
+    const synth = new Tone.Synth().toDestination();
+    synth.triggerAttackRelease(pitch, `${duration}s`);
+  };
+
+  const handlePlayMusic = () => {
+    let delay = 0;
+    buildingsWithin8km.forEach((building, index) => {
+      const height = building.properties.measuredHeight;
+      if (height) {
+        const { pitch, duration } = generateMusicParameters(height);
+        setTimeout(() => {
+          playSound(pitch, duration);
+        }, delay);
+        delay += duration * 1000 + 100; // 各音の間隔を少し長めに設定
+      }
+    });
+  };
 
   const layers = [
     new GeoJsonLayer({
@@ -115,14 +143,17 @@ const MapWithGeoJson = () => {
       pickable: true,
       stroked: false,
       filled: true,
-      extruded: true, // 3Dに表示
-      pointType: 'circle',
+      extruded: true, // 3D表示
       getFillColor: [160, 160, 180, 200],
       getLineColor: [0, 0, 0, 255],
       getRadius: 100,
-      getElevation: 30,
+      getElevation: (d: any) => d.properties.measuredHeight || 30,
     }),
   ];
+
+  if (!geojsonData) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div style={{ height: '100vh', width: '100vw', position: 'relative' }}>
@@ -138,8 +169,9 @@ const MapWithGeoJson = () => {
           zIndex: 1,
         }}
       >
-        <p>Latitude: {latitude.toFixed(6)}</p>
-        <p>Longitude: {longitude.toFixed(6)}</p>
+        <p>緯度: {latitude.toFixed(6)}</p>
+        <p>経度: {longitude.toFixed(6)}</p>
+        <p>方角: {heading.toFixed(2)}°</p>
         {error && <p style={{ color: 'red' }}>{error}</p>}
         <button onClick={handlePlayMusic}>音楽を再生</button>
         <h4>8km以内の建物リスト</h4>
