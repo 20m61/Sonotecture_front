@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import DeckGL from '@deck.gl/react';
 import { GeoJsonLayer } from '@deck.gl/layers';
 import { ViewStateChangeParameters } from '@deck.gl/core';
+import * as Tone from 'tone'; // Tone.jsをインポート
 
 const INITIAL_VIEW_STATE = {
   latitude: 35.6895, // 初期の緯度（東京）
@@ -21,31 +22,54 @@ const MapWithGeoJson = () => {
   const [error, setError] = useState<string | null>(null);
   const [geojsonData, setGeojsonData] = useState<any>(null);
   const [filteredBuildings, setFilteredBuildings] = useState<any[]>([]);
-  const [iOSPermissionRequested, setIOSPermissionRequested] = useState(false);
 
   // GeoJSONデータをfetchで読み込む
   useEffect(() => {
     const fetchGeoJson = async () => {
       try {
-        const response = await fetch('/data/building.geojson');
+        console.log('Fetching GeoJSON data...');
+        const response = await fetch('./data/building.geojson'); // パスが正しいか確認
         if (!response.ok) {
           throw new Error('Failed to fetch GeoJSON data');
         }
         const data = await response.json();
+        console.log('GeoJSON data loaded:', data); // データが正しく読み込まれたか確認
         setGeojsonData(data);
       } catch (error) {
+        console.error('Error loading GeoJSON:', error);
         setError('Failed to load GeoJSON data');
       }
     };
     fetchGeoJson();
   }, []);
 
+  // 音楽生成機能
+  const createMusicFromBuildings = (buildings: any[]) => {
+    // Tone.jsを初期化
+    const synth = new Tone.Synth().toDestination();
+
+    // ここで建物の高さなどを音楽パラメータに変換
+    buildings.forEach((building, index) => {
+      const height = building.properties.height || 50; // 建物の高さ（高さが不明の場合は50を使用）
+      const frequency = 100 + height * 2; // 高さに基づいて周波数を設定
+      const duration = '8n'; // 音の長さを設定
+
+      // 音を再生 (ランダムな時間差で)
+      Tone.Transport.scheduleOnce((time) => {
+        synth.triggerAttackRelease(frequency, duration, time);
+      }, index * 0.5); // 建物ごとに0.5秒の間隔を空けて再生
+    });
+
+    // Tone.jsのタイムラインをスタート
+    Tone.Transport.start();
+  };
+
   // 緯度経度と方角のリアルタイム取得
   useEffect(() => {
     if ('geolocation' in navigator) {
       const watchId = navigator.geolocation.watchPosition(
         (position) => {
-          const altitudeOffset = 0.000009; // 約1メートルの高度調整（緯度経度に相当）
+          const altitudeOffset = 0.000009;
 
           setLatitude(position.coords.latitude);
           setLongitude(position.coords.longitude);
@@ -77,45 +101,18 @@ const MapWithGeoJson = () => {
     } else {
       setError('Geolocation is not supported by this browser.');
     }
-  }, []);
 
-  // iOS向けの方角取得処理
-  const handleOrientationPermission = async () => {
-    setIOSPermissionRequested(true); // ボタンを押したフラグを設定
-
-    if (
-      typeof (DeviceOrientationEvent as any).requestPermission === 'function'
-    ) {
-      try {
-        const permission = await (
-          DeviceOrientationEvent as any
-        ).requestPermission();
-        if (permission === 'granted') {
-          window.addEventListener('deviceorientation', handleOrientation);
-        } else {
-          setError('Device orientation permission denied');
-        }
-      } catch (error) {
-        setError('Device orientation permission denied');
+    // 方角取得
+    window.addEventListener('deviceorientation', (event) => {
+      if (event.alpha !== null && typeof event.alpha === 'number') {
+        setHeading(event.alpha);
+        setViewState((prevState) => ({
+          ...prevState,
+          bearing: event.alpha ?? prevState.bearing,
+        }));
       }
-    } else {
-      window.addEventListener('deviceorientation', handleOrientation);
-    }
-  };
-
-  const handleOrientation = (event: DeviceOrientationEvent) => {
-    if (event.alpha !== null && typeof event.alpha === 'number') {
-      setHeading(event.alpha); // デバイスの方角を取得
-
-      console.log(`Current heading: ${event.alpha}`);
-
-      // viewStateを更新して地図を回転させる
-      setViewState((prevState) => ({
-        ...prevState,
-        bearing: event.alpha ?? prevState.bearing,
-      }));
-    }
-  };
+    });
+  }, []);
 
   // 建物をフィルタリングする
   useEffect(() => {
@@ -134,9 +131,10 @@ const MapWithGeoJson = () => {
       });
 
       setFilteredBuildings(filtered);
+      console.log('Filtered Buildings:', filtered); // フィルタリング結果をコンソールに出力
 
-      // フィルタリング結果をコンソールに出力
-      console.log('Filtered Buildings:', filtered);
+      // 音楽を更新
+      createMusicFromBuildings(filtered);
     }
   }, [geojsonData, latitude, longitude, heading]);
 
@@ -205,25 +203,6 @@ const MapWithGeoJson = () => {
           ))}
         </ul>
       </div>
-
-      {!iOSPermissionRequested && (
-        <button
-          onClick={handleOrientationPermission}
-          style={{
-            position: 'absolute',
-            bottom: 20,
-            left: 20,
-            padding: '10px 20px',
-            backgroundColor: 'blue',
-            color: 'white',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: 'pointer',
-          }}
-        >
-          iOSで方角の許可をリクエスト
-        </button>
-      )}
 
       <DeckGL
         viewState={viewState}
