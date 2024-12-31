@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sonotecture - 都市音楽体験</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <header class="hero">
+    <div class="overlay">
+      <h1>Sonotecture</h1>
+      <p>CityGMLを活用した都市の音楽とビジュアライゼーションの融合</p>
+    </div>
+  </header>
+
+  <section class="experience">
+    <h2>提供する体験</h2>
+    <p>都市の「表情」を音楽とビジュアライゼーションで表現します。<br>CityGMLからリアルタイムで建物情報を取得し、視覚と聴覚を通じて都市を体感する新しいインタラクションを提供します。</p>
+    <img src="./city_visualization.jpg" alt="都市ビジュアライゼーション" class="section-image">
+  </section>
+
+  <section class="tech-stack">
+    <h2>技術スタック</h2>
+    <ul>
+      <li>Next.js</li>
+      <li>GeoJSON</li>
+      <li>Tone.js</li>
+    </ul>
+  </section>
+
+  <section class="code-features">
+    <h2>工夫したポイント</h2>
+    <ul>
+      <li>建物の高さに基づく音楽生成</li>
+      <li>8km以内の建物をリアルタイムでフィルタリング</li>
+      <li>位置情報とデバイスの向きに応じた動的な反映</li>
+    </ul>
+  </section>
+
+  <section class="code-challenges">
+    <h2>課題</h2>
+    <ul>
+      <li>GeoJSONデータ取得</li>
+      <li>ブラウザ依存のGeolocationやDeviceOrientation</li>
+      <li>表現力の限界：建物の高さのみを使用</li>
+    </ul>
+  </section>
+
+  <section class="strengths">
+    <h2>ポイント</h2>
+    <ul>
+      <li>ユーザーの位置と方位に応じて動的に変化するインタラクション</li>
+      <li>シンプルかつリアルタイムで音楽生成</li>
+      <li>今後のDeck.GLによるビジュアライゼーション強化</li>
+    </ul>
+  </section>
+
+  <section class="future">
+    <h2>今後の展望</h2>
+    <ul>
+      <li>CityGMLの3D建物情報を活用し、ビジュアライゼーションを強化</li>
+      <li>サーバサイドの再構築でより多くのデータを活用</li>
+      <li>都市ごとの音楽体験の多様化</li>
+    </ul>
+  </section>
+
+  <section class="demo">
+    <h2>デモンストレーション</h2>
+    <p>周辺の建物の高さに基づいた音楽生成デモを実施。リアルタイムに建物情報を取得し、都市の音楽体験を提供します。</p>
+    <img src="demo_visual.png" alt="デモビジュアライゼーション" class="section-image">
+  </section>
+
+  <footer>
+    <p>&copy; 2024 Sonotecture. All rights reserved.</p>
+  </footer>
+</body>
+
+</html>
